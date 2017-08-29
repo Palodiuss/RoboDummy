@@ -4,6 +4,9 @@ void setup() {
   // Engines pins
   pinMode(2, OUTPUT);
   pinMode(3, OUTPUT);
+  //Engine dir pins
+  pinMode(12, OUTPUT); 
+  pinMode(13, OUTPUT);
 
   // RC pins
   pinMode(4, INPUT); //R -> L/R
@@ -48,8 +51,9 @@ void loop() {
       dT_RC1 = RC1_stateTime - RC1_prevStateTime;
 
       dT_RC1 = (dT_RC1 - 1500) / 5;    // scale to <-100, 100>
-      if(dT_RC1 > 15) dT_RC1 = 15;
-      if(dT_RC1 < 0) dT_RC1 = 0;
+      //TODO: Wygładzenie szumu
+      if(dT_RC1 > 10) dT_RC1 = 10;
+      if(dT_RC1 < -10) dT_RC1 = -10;
     }
     RC1_prevStateTime = RC1_stateTime;
   }
@@ -66,8 +70,8 @@ void loop() {
       dT_RC2 = RC2_stateTime - RC2_prevStateTime;
 
       dT_RC2 = (dT_RC2 - 1500) / 10;    // scale to <-50, 50>
-      if(dT_RC2 > 15) dT_RC2 = 15;
-      if(dT_RC2 < -15) dT_RC1 = -15;
+      if(dT_RC2 > 10) dT_RC2 = 10;
+      if(dT_RC2 < -10) dT_RC1 = -10;
     }
     RC2_prevStateTime = RC2_stateTime;
   }
@@ -92,15 +96,18 @@ void loop() {
   
 
   // Engine 1
+  if (e1>0) 
+    digitalWrite(12, LOW);
+  else digitalWrite(12, HIGH);
+  
   int actualTime = micros();
   int dT_E = actualTime - cycleTime1;
 
   if(dT_E < e1 * 3)
-    //TODO: IF e1<0 zmienic kierunek
-    digitalWrite(3, HIGH);
+    digitalWrite(2, HIGH);
   else if(dT_E < 300)
   {
-    digitalWrite(3, LOW);
+    digitalWrite(2, LOW);
   }
   else
   {
@@ -108,15 +115,17 @@ void loop() {
   }
 
   // Engine 2
+  if (e2>0) 
+    digitalWrite(13, LOW);
+  else digitalWrite(13, HIGH);
   int actualTime = micros();
   int dT_E = actualTime - cycleTime2;
 
   if(dT_E < e2 * 3)
-    //TODO: IF e1<0 zmienic kierunek
-    digitalWrite(2, HIGH);
+    digitalWrite(3, HIGH);
   else if(dT_E < 300)
   {
-    digitalWrite(2, LOW);
+    digitalWrite(3, LOW);
   }
   else
   {
