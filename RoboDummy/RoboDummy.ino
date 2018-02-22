@@ -1,20 +1,23 @@
+#include <FastGPIO.h>
+
 double ch[4];
 
-void setup() {
+void setup() 
+{
   // Engines pins
-  pinMode(2, OUTPUT);
-  pinMode(3, OUTPUT);
-  //Engine dir pins
-  pinMode(12, OUTPUT); 
-  pinMode(13, OUTPUT);
+  FastGPIO::Pin<2>::setOutput(LOW);
+  FastGPIO::Pin<3>::setOutput(LOW);
+  
+  // Direction pins
+  FastGPIO::Pin<12>::setOutput(LOW);
+  FastGPIO::Pin<13>::setOutput(LOW);
 
   // RC pins
-  pinMode(4, INPUT); //R -> L/R
-  pinMode(5, INPUT); //R -> U/D
-  pinMode(6, INPUT); //L -> U/D
-  pinMode(7, INPUT); //L -> L/R
-
-  //Serial.begin(9600);
+  FastGPIO::Pin<4>::setInput(); //R -> L/R
+  FastGPIO::Pin<5>::setInput(); //R -> U/D
+  FastGPIO::Pin<6>::setInput(); //L -> U/D
+  FastGPIO::Pin<7>::setInput(); //L -> L/R
+  Serial.begin(9600);
 }
 
 // Engine
@@ -22,113 +25,195 @@ int cycleTime1 = 0;
 int cycleTime2 = 0;
 int e1 = 0;
 int e2 = 0;
+int e1P = 0;
+int e2P = 0;
+int engDir = 0;
+int engDirP = 0;
+bool left = false;
+bool right = false;
+bool control_on = false;
+int counter = 0;
 
+int dT_E = 0;
+int actualTime = 0;
 
-// RC
+// RC1
 int RC1_state = 0;
 int RC1_prevState = 0;
 int RC1_stateTime = 0;
 int RC1_prevStateTime = 0;
 int dT_RC1 = 0;
 
+// RC2
 int RC2_state = 0;
 int RC2_prevState = 0;
 int RC2_stateTime = 0;
 int RC2_prevStateTime = 0;
 int dT_RC2 = 0;
 
-void loop() {
 
-  // RC 1
-  RC1_state = digitalRead(6);
+
+void loop()
+{
+  // RC1
+  RC1_state = FastGPIO::Pin<6>::isInputHigh();
   if (RC1_state != RC1_prevState)
   {
+    counter = 0;
     RC1_prevState = RC1_state;
-    RC1_stateTime= micros();
-
+    RC1_stateTime = micros();
     if(RC1_state == LOW)
     {
       dT_RC1 = RC1_stateTime - RC1_prevStateTime;
 
       dT_RC1 = (dT_RC1 - 1500) / 5;    // scale to <-100, 100>
-      //TODO: Wygładzenie szumu
-      if(dT_RC1 > 10) dT_RC1 = 10;
-      if(dT_RC1 < -10) dT_RC1 = -10;
+      
+      if (dT_RC1 < 2 && dT_RC1 >-2) control_on = true;
+      if (control_on==false) dT_RC1 = 0;
     }
     RC1_prevStateTime = RC1_stateTime;
   }
+  else counter++;
 
-  // RC 2
-  RC2_state = digitalRead(4);
+  if (counter > 1000) {
+    control_on=false;
+    dT_RC1 = 0;
+  }
+
+  // RC2
+  RC2_state = FastGPIO::Pin<4>::isInputHigh();
   if (RC2_state != RC2_prevState)
   {
     RC2_prevState = RC2_state;
-    RC2_stateTime= micros();
+    RC2_stateTime = micros();
 
     if(RC2_state == LOW)
     {
       dT_RC2 = RC2_stateTime - RC2_prevStateTime;
-
-      dT_RC2 = (dT_RC2 - 1500) / 10;    // scale to <-50, 50>
-      if(dT_RC2 > 10) dT_RC2 = 10;
-      if(dT_RC2 < -10) dT_RC1 = -10;
+      dT_RC2 = (dT_RC2 - 1500) / 5;    // scale to <-100, 100>
     }
     RC2_prevStateTime = RC2_stateTime;
   }
-  
-  // Directions
-  e1 = dT_RC1;
-  e2 = dT_RC1;
 
-  int dir = dt_RC2;
+  setDirections();
 
-  if (dir > 6) 
-  {
-    e1 = dt_RC1 + dir;
-    e2 = dt_Rc1 - (dir/2);
-  }
-  else if (dir <-6) 
-  {
-    e1 = dt_Rc1 - (dir/2);
-    e2 = dt_Rc1 + dir;
-  }
-
-  
+  setEngines();
 
   // Engine 1
-  if (e1>0) 
-    digitalWrite(12, LOW);
-  else digitalWrite(12, HIGH);
+  actualTime = micros();
+  dT_E = actualTime - cycleTime1;
   
-  int actualTime = micros();
-  int dT_E = actualTime - cycleTime1;
-
-  if(dT_E < e1 * 3)
-    digitalWrite(2, HIGH);
-  else if(dT_E < 300)
+  if(dT_E < e1*2)
+    FastGPIO::Pin<3>::setOutput(HIGH);
+  else if(dT_E < 200)
   {
-    digitalWrite(2, LOW);
+    FastGPIO::Pin<3>::setOutput(LOW);
   }
   else
   {
       cycleTime1 = actualTime;
   }
 
-  // Engine 2
-  if (e2>0) 
-    digitalWrite(13, LOW);
-  else digitalWrite(13, HIGH);
-  int actualTime = micros();
-  int dT_E = actualTime - cycleTime2;
 
-  if(dT_E < e2 * 3)
-    digitalWrite(3, HIGH);
-  else if(dT_E < 300)
+  // Engine 2
+  actualTime = micros();
+  dT_E = actualTime - cycleTime2;
+  
+  if(dT_E < e2*2)
+    FastGPIO::Pin<2>::setOutput(HIGH);
+  else if(dT_E < 200)
   {
-    digitalWrite(3, LOW);
+    FastGPIO::Pin<2>::setOutput(LOW);
   }
   else
   {
       cycleTime2 = actualTime;
   }
+  
+}
+
+void setEngines()
+{   
+  if (e1 >= 10)
+    FastGPIO::Pin<12>::setOutput(HIGH);
+  else if (e1<= -10) 
+    FastGPIO::Pin<12>::setOutput(LOW);
+ 
+  if (e2 >= 10)
+    FastGPIO::Pin<13>::setOutput(HIGH);
+  else if (e2<= -10) 
+    FastGPIO::Pin<13>::setOutput(LOW);
+    
+  e1=abs(e1);
+  e2=abs(e2);
+  
+  if (e1<5) e1P=0;
+  else if (e1 > 12) e1P = e1;
+   
+  if(e2<5) e2P=0;
+  else if (e2 > 12) e2P = e2;
+  
+  if (e1>25) e1P = 25;
+  if (e2>25) e2P = 25;
+  
+  e1 = e1P;
+  e2 = e2P;
+  }
+
+void setDirections()
+{
+  engDir = (dT_RC2);  
+
+  if (engDir < 6 && engDir > -6) {
+    engDirP = 0;
+    left = false;
+    right = false;
+  }
+  
+  if (engDir > 13){
+    engDirP = engDir;
+    left = false;
+    right = true;
+  }
+  if (engDir <-13) {
+    engDirP = engDir;
+    left = true;
+    right = false;
+  }
+  
+  if (engDir > 20) engDirP = 20;
+  if (engDir < -20) engDirP = -20;
+
+  engDir = engDirP;
+  
+  if (dT_RC1>=10 && left)           //Tyl - Lewo
+  {
+    e1 = dT_RC1;
+    e2 = dT_RC1 - engDir;
+  }
+  else if (dT_RC1>=10 && right)     //Tyl - Prawo
+  {
+    e1 = dT_RC1 + engDir;
+    e2 = dT_RC1;  
+  }
+    else if (dT_RC1<=-10 && left)   //Przod - lewo
+  {
+    e1 = dT_RC1;
+    e2 = dT_RC1 + engDir;  
+  }
+    else if (dT_RC1<=-10 && right)   //Przod - prawo
+  {
+    e1 = dT_RC1 - engDir;
+    e2 = dT_RC1;  
+  }      
+  else if (dT_RC1<=-5 || dT_RC1>=5)
+  {
+    e1 = dT_RC1;
+    e2 = dT_RC1;
+  }
+  else
+  {
+      e1 = engDir;
+      e2 = -engDir;
+  } 
 }
